@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+import requests
 from requests.adapters import HTTPAdapter
 from requests.exceptions import RetryError
 from urllib3.util.retry import Retry
@@ -16,7 +17,7 @@ MODEL_SELECT_LIST = os.environ['MODEL_SELECT_LIST']
 def models_to_write(model_select_method, all_models_dict, model_select_list = [''], MODEL_SELECT_REGEX = ''):
     if model_select_method == 'select':
         sync_models_dict = model_select_list
-        
+
     elif model_select_method == 'regex':
         print(f'{MODEL_SELECT_REGEX} string used for select')
         model_name_pattern = re.compile(MODEL_SELECT_REGEX)
