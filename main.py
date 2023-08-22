@@ -9,7 +9,6 @@ import re
 
 DATABASE_PARENT_ID = os.environ['DATABASE_PARENT_ID']
 DATABASE_NAME = os.environ['DATABASE_NAME']
-NOTION_TOKEN = os.environ['NOTION_TOKEN']
 MODEL_SELECT_METHOD = os.environ['MODEL_SELECT_METHOD']
 MODEL_SELECT_REGEX = os.environ['MODEL_SELECT_REGEX']
 MODEL_SELECT_LIST = os.environ['MODEL_SELECT_LIST']
@@ -17,6 +16,7 @@ MODEL_SELECT_LIST = os.environ['MODEL_SELECT_LIST']
 def models_to_write(model_select_method, all_models_dict, model_select_list = [''], MODEL_SELECT_REGEX = ''):
     if model_select_method == 'select':
         sync_models_dict = model_select_list
+        
     elif model_select_method == 'regex':
         print(f'{MODEL_SELECT_REGEX} string used for select')
         model_name_pattern = re.compile(MODEL_SELECT_REGEX)
@@ -29,7 +29,6 @@ def models_to_write(model_select_method, all_models_dict, model_select_list = ['
         sync_models_dict = all_models_dict
         
     sync_models_len = len(sync_models_dict)
-
     print(f'{ sync_models_len } selected for sync')
     return sync_models_dict, sync_models_len
 

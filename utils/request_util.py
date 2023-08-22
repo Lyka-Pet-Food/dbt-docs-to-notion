@@ -2,10 +2,8 @@ import requests
 import time
 import os
 
-
-NOTION_TOKEN = os.environ['NOTION_TOKEN']
-
 def make_request(endpoint, querystring='', method='GET', **request_kwargs):
+    NOTION_TOKEN = os.environ['NOTION_TOKEN']
     time.sleep(0.5)  # Rate limit: 3 requests per second
     headers = {
         'Authorization': f'Bearer {NOTION_TOKEN}',
