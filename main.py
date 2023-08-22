@@ -3,6 +3,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from utils.notion_utils import create_database, create_record
+from utils.model_utils import models_to_write
 import json
 import time
 
