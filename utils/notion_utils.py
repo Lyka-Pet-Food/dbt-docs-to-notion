@@ -73,6 +73,10 @@ def update_record(record_id, record_obj):
         json=record_obj
     )
 
+    # Print the response from the record update request
+    print("Response from record update request:")
+    print(_record_update_resp)
+
     # children can't be updated via record update, so we'll delete and re-add
     record_children_resp = make_request(
         endpoint='blocks/',
@@ -87,12 +91,20 @@ def update_record(record_id, record_obj):
             method='DELETE'
         )
 
+        # Print the response from the record child deletion request
+        print(f"Response from child deletion request for block ID {record_child_id}:")
+        print(_record_child_deletion_resp)
+
     _record_children_replacement_resp = make_request(
         endpoint='blocks/',
         querystring=f'{record_id}/children',
         method='PATCH',
         json={"children": record_obj['children']}
     )
+
+    # Print the response from the record children replacement request
+    print("Response from children replacement request:")
+    print(_record_children_replacement_resp)
 
 def create_record(database_id, model_name, data, catalog_nodes):
     column_descriptions = {name: metadata['description'] for name, metadata in data['columns'].items()}
