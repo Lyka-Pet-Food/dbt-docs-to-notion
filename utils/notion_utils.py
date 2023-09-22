@@ -1,57 +1,11 @@
-import os
-import datetime
-import requests
-from requests.adapters import HTTPAdapter
-from requests.exceptions import RetryError
-from urllib3.util.retry import Retry
-import time
-import sys
+from utils.request_utils import make_request, get_paths_or_empty
+from utils.model_utils import get_owner
 import json
-import re
-
+from datetime import datetime
+import os
 
 DATABASE_PARENT_ID = os.environ['DATABASE_PARENT_ID']
 DATABASE_NAME = os.environ['DATABASE_NAME']
-NOTION_TOKEN = os.environ['NOTION_TOKEN']
-
-def retry(exception, tries=10, delay=0.5, backoff=2):
-    def decorator_retry(func):
-        def wrapper(*args, **kwargs):
-            retry_strategy = Retry(
-                total=tries,
-                backoff_factor=backoff,
-                status_forcelist=[503],
-                method_whitelist=["GET"]
-            )
-            adapter = HTTPAdapter(max_retries=retry_strategy)
-            session = requests.Session()
-            session.mount("https://", adapter)
-
-            for attempt in range(tries):
-                try:
-                    response = func(*args, **kwargs)
-                    response.raise_for_status()
-                    return response.json()
-                except exception as e:
-                    if attempt == tries - 1:
-                        raise e
-                    print(f"Retrying after {delay} seconds...")
-                    time.sleep(delay)
-
-        return wrapper
-
-    return decorator_retry
-
-def make_request(endpoint, querystring='', method='GET', **request_kwargs):
-    time.sleep(0.5)  # Rate limit: 3 requests per second
-    headers = {
-        'Authorization': f'Bearer {NOTION_TOKEN}',
-        'Content-Type': 'application/json',
-        'Notion-Version': '2022-02-22'
-    }
-    url = f'https://api.notion.com/v1/{endpoint}{querystring}'
-    resp = requests.request(method, url, headers=headers, **request_kwargs)
-    return resp.json()
 
 def create_database():
     children_query_resp = make_request(
@@ -108,7 +62,7 @@ def create_database():
 
 def update_record(record_id, record_obj):
     current_datetime = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
-    record_obj["properties"]["Last Updated"] = {
+    record_obj["properties"]["Docs Last Updated"] = {
         "rich_text": [{"text": {"content": current_datetime}}]
     }
 
@@ -118,6 +72,10 @@ def update_record(record_id, record_obj):
         method='PATCH',
         json=record_obj
     )
+
+    # Print the response from the record update request
+    print("Response from record update request:")
+    print(_record_update_resp)
 
     # children can't be updated via record update, so we'll delete and re-add
     record_children_resp = make_request(
@@ -133,6 +91,11 @@ def update_record(record_id, record_obj):
             method='DELETE'
         )
 
+        # Print the response from the record child deletion request
+        print(f"Response from child deletion request for block ID {record_child_id}:")
+        print(_record_child_deletion_resp)
+    print("Updating record with data...")
+    print(record_obj['children'])
     _record_children_replacement_resp = make_request(
         endpoint='blocks/',
         querystring=f'{record_id}/children',
@@ -140,10 +103,15 @@ def update_record(record_id, record_obj):
         json={"children": record_obj['children']}
     )
 
-def create_record(database_id, model_name, data, catalog_nodes, current_datetime):
+    # Print the response from the record children replacement request
+    print("Response from children replacement request:")
+    print(_record_children_replacement_resp)
+
+def create_record(database_id, model_name, data, catalog_nodes):
     column_descriptions = {name: metadata['description'] for name, metadata in data['columns'].items()}
     col_names_and_data = list(get_paths_or_empty(catalog_nodes, [[model_name, 'columns']], {}).items())
-
+    current_datetime = datetime.now()
+    formatted_datetime = current_datetime.strftime('%Y-%m-%d %H:%M:%S')
     columns_table_children_obj = [
         {
             "type": "table_row",
@@ -294,7 +262,7 @@ def create_record(database_id, model_name, data, catalog_nodes, current_datetime
                 "rich_text": [
                     {
                         "type": "text",
-                        "text": {"content": current_datetime}
+                        "text": {"content": formatted_datetime}
                     }
                 ]
             }
@@ -399,8 +367,7 @@ def create_record(database_id, model_name, data, catalog_nodes, current_datetime
     except json.JSONDecodeError as e:
         print(f'Skipping {model_name} due to JSON decode error:', e)
         return  # Skip this model_name and proceed to the next one
-    
-    print("Response from API:", record_query_resp)
+
 
     if record_query_resp['results']:
         print(f'updating {model_name} record')
@@ -415,62 +382,3 @@ def create_record(database_id, model_name, data, catalog_nodes, current_datetime
             method='POST',
             json=record_obj
         )
-
-def get_paths_or_empty(parent_object, paths_array, zero_value=''):
-  """Used for catalog_nodes accesses, since structure is variable"""
-  for path in paths_array:
-    obj = parent_object
-    for el in path:
-      if el not in obj:
-        obj = zero_value
-        break
-      obj = obj[el]
-    if obj != zero_value:
-      return obj
-
-  return zero_value
-
-
-def get_owner(data, catalog_nodes, model_name):
-  """
-  Check for an owner field explicitly named in the DBT Config
-  If none present, fall back to database table owner
-  """
-  owner = get_paths_or_empty(data, [['config', 'meta', 'owner']], None)
-  if owner is not None:
-    return owner
-
-  return get_paths_or_empty(catalog_nodes, [[model_name, 'metadata', 'owner']], '')
-  
-def main():
-    model_records_to_write = sys.argv[1:]  # 'all' or list of model names
-    print(f'Model records to write: {model_records_to_write}')
-
-    # Load nodes from dbt docs
-    with open('target/manifest.json', encoding='utf-8') as f:
-        manifest = json.load(f)
-        manifest_nodes = manifest['nodes']
-
-    with open('target/catalog.json', encoding='utf-8') as f:
-        catalog = json.load(f)
-        catalog_nodes = catalog['nodes']
-
-    models = {
-        node_name: data
-        for (node_name, data)
-        in manifest_nodes.items() if data['resource_type'] == 'model'
-    }
-
-    # Create or update the database
-    database_id = create_database()
-
-    total_model_count = len(models)
-    current_model_count = 0
-    for model_name, data in sorted(models.items(), reverse=True):
-        if model_records_to_write == ['all'] or model_name in model_records_to_write or re.match(MODEL_REGEX, model_name):
-            create_record(database_id, model_name, data, catalog_nodes)
-            current_model_count = current_model_count + 1
-            print(f'{current_model_count} models processed out of { total_model_count }')
-     
-if __name__ == '__main__':
-    main()
