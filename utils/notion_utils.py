@@ -94,7 +94,8 @@ def update_record(record_id, record_obj):
         # Print the response from the record child deletion request
         print(f"Response from child deletion request for block ID {record_child_id}:")
         print(_record_child_deletion_resp)
-
+    print("Updating record with data...")
+    print(record_obj['children'])
     _record_children_replacement_resp = make_request(
         endpoint='blocks/',
         querystring=f'{record_id}/children',
