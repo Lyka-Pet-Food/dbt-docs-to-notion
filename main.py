@@ -29,7 +29,6 @@ def main():
     print(f'{ all_models_len } models in dbt project')
 
     sync_models_dict, sync_models_len = models_to_write(MODEL_SELECT_METHOD, all_models_dict, MODEL_SELECT_LIST, MODEL_SELECT_REGEX)
-    print(f'models to sync { sync_models_dict }')
     # Create or update the database
     database_id = create_database()
 
